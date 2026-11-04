@@ -1,0 +1,32 @@
+{
+  "about": "The Workbench icons of the PuzzlePits drawer: python3 AMICRADLE/scripts/port_icons.py amiga/icons/icons.json --out amiga/icons (DalsinAI/amicradle). The art is the game's own (packaging/linux/puzzle-pits.png, from its title screen). PuzzlePits-drawer.info is the drawer's own icon, PuzzlePits.info beside the drawer; it has its own name here so as not to meet the program's PuzzlePits.info. LEVELS.info is the levels drawer's.",
+  "drawer": {
+    "name": "PuzzlePits",
+    "file": "PuzzlePits-drawer.info"
+  },
+  "badge": "art/puzzlepits.png",
+  "icons": [
+    {
+      "file": "PuzzlePits.info",
+      "kind": "tool",
+      "stack": 131072
+    },
+    {
+      "file": "ReadMe.info",
+      "kind": "readme"
+    },
+    {
+      "file": "Instructions.info",
+      "kind": "readme"
+    },
+    {
+      "file": "LICENSE.info",
+      "kind": "readme"
+    },
+    {
+      "file": "LEVELS.info",
+      "kind": "drawer",
+      "type": "drawer"
+    }
+  ]
+}

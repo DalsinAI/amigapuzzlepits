@@ -398,9 +398,17 @@ UBYTE ReadUByte(FILE *fp)
 
 WORD ReadWord(FILE *fp)
 {
+#ifdef __amigaos__
+  /* the levels' words are high byte first (Abe's Amiga order): built
+     from the bytes, not through the union, which is the PC's order */
+  int hi=fgetc(fp),lo=fgetc(fp);
+  if(hi==EOF || lo==EOF) return 0;
+  return (WORD)(((hi&0xff)<<8)|(lo&0xff));
+#else
   union wordbytes data;
   fscanf(fp,"%c%c",&data.byte[1],&data.byte[0]);
   return data.word;
+#endif
 }
 
 void ReadString(FILE *fp,char *str)
@@ -411,6 +419,21 @@ void ReadString(FILE *fp,char *str)
   Decrypt(str,cryptkey,size);
   str[size]=0;
 }
+
+#ifdef __amigaos__
+/* ReadString into a buffer of max bytes: a longer string (a damaged or
+   hostile level) is cut short and the rest skipped, not written past it */
+void ReadStringMax(FILE *fp,char *str,ULONG max)
+{
+  ULONG size,keep;
+  size=(UWORD)(ReadWord(fp)^22);
+  keep=size<max ? size : max-1;
+  ReadMem(fp,str,keep);
+  if(size>keep) fseek(fp,(long)(size-keep),SEEK_CUR);
+  Decrypt(str,cryptkey,keep);
+  str[keep]=0;
+}
+#endif
 
 #endif
 

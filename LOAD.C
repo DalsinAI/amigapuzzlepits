@@ -78,8 +78,23 @@ int load_Wave(const char *filename, SOUND *sound)
 		goto ABORTLOAD;
   }
 
+#ifdef __amigaos__
+	/* a WAV's lengths are little-endian: swapped for the 68k */
+	wav.hdr.fmtlen = SDL_SwapLE32(wav.hdr.fmtlen);
+#endif
 	fseek(fp, wav.hdr.fmtlen, SEEK_CUR);                                    //seek to begining of data
 	fread(&wav.datahdr, sizeof(DATAHDR), 1, fp);
+#ifdef __amigaos__
+	wav.datahdr.datalen = SDL_SwapLE32(wav.datahdr.datalen);
+	{	/* no more samples than the file holds */
+		long here = ftell(fp);
+		fseek(fp, 0, SEEK_END);
+		if (here < 0 || memcmp(wav.datahdr.dataid, "data", 4) != 0 ||
+				wav.datahdr.datalen > (DWORD)(ftell(fp) - here))
+			goto ABORTLOAD;
+		fseek(fp, here, SEEK_SET);
+	}
+#endif
 
 	if ((sound->samples = (INT8 *)halloc(wav.datahdr.datalen, 1)) == NULL)
 	{
