@@ -1,0 +1,145 @@
+name: Build
+
+# Every push to master builds the game for Linux, Windows, macOS and the
+# web, and puts the web version on GitHub Pages; a v* tag also makes a
+# release of the others, each with the game's data, to play.
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  ZIG_VERSION: 0.17.0
+  SDL2_VERSION: 2.32.10
+
+jobs:
+  linux:
+    # the oldest supported Ubuntu, so it runs on older distributions too
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - run: sudo apt-get update && sudo apt-get install -y libsdl2-dev
+      - run: zig build -Doptimize=ReleaseSafe
+      - name: Package
+        run: |
+          name=puzzle-pits-${GITHUB_REF_NAME#v}-linux-x86_64
+          mkdir -p $name dist
+          cp zig-out/bin/puzzle-pits $name/
+          cp -r PITS95/* README.md LICENSE $name/
+          tar czf dist/$name.tar.gz $name
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+
+  windows:
+    # cross-compiled with Zig, with SDL2's own Windows build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - name: SDL2 for Windows
+        run: |
+          curl -fsSL -o sdl.tar.gz https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-devel-${SDL2_VERSION}-mingw.tar.gz
+          tar xzf sdl.tar.gz
+      - run: zig build -Dtarget=x86_64-windows-gnu -Doptimize=ReleaseSafe -Dsdl-prefix=$PWD/SDL2-${SDL2_VERSION}/x86_64-w64-mingw32
+      - name: Package
+        run: |
+          name=puzzle-pits-${GITHUB_REF_NAME#v}-windows-x64
+          mkdir -p $name dist
+          cp zig-out/bin/puzzle-pits.exe SDL2-${SDL2_VERSION}/x86_64-w64-mingw32/bin/SDL2.dll $name/
+          cp -r PITS95/* README.md LICENSE $name/
+          zip -qr dist/$name.zip $name
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - run: brew install sdl2 sdl3 dylibbundler
+      - run: zig build -Doptimize=ReleaseSafe -Dsdl-prefix=$(brew --prefix sdl2)
+      - name: Package
+        run: |
+          name=puzzle-pits-${GITHUB_REF_NAME#v}-macos-arm64
+          mkdir -p $name dist
+          cp zig-out/bin/puzzle-pits $name/
+          cp -r PITS95/* README.md LICENSE $name/
+          # SDL2 goes with it, so it runs without Homebrew
+          dylibbundler -od -b -x $name/puzzle-pits -d $name/libs -p @executable_path/libs/
+          # Homebrew's SDL2 is sdl2-compat, which loads SDL3 from beside it
+          cp "$(brew --prefix sdl3)/lib/libSDL3.0.dylib" $name/libs/
+          ditto -c -k --keepParent $name dist/$name.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*
+
+  web:
+    # the game for a browser, with Emscripten
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
+      - uses: mymindstorm/setup-emsdk@v14
+      - run: zig build web
+      # the level editor beside the game, and its format checked against
+      # all of Abe's levels
+      - run: node tools/pit_test.mjs
+      - run: node tools/script_test.mjs
+      - run: node tools/pitscripts_test.mjs
+      - run: node tools/build-editor.mjs zig-out/web/editor/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: zig-out/web
+
+  pages:
+    # played online at the repository's GitHub Pages
+    if: github.ref == 'refs/heads/master'
+    needs: web
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      # the level editor as one file, to use offline; Play opens the game online
+      - run: node tools/build-editor.mjs dist/puzzle-pits-editor.html https://lapingvino.github.io/The-Puzzle-Pits/
+      # the levels as a Rocks'n'Diamonds level set (Sokoban, the game's pictures)
+      - run: |
+          node tools/pit2rnd.mjs PITS95/LEVELS the_puzzle_pits
+          zip -qr "dist/puzzle-pits-${GITHUB_REF_NAME#v}-rocksndiamonds.zip" the_puzzle_pits
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "The Puzzle Pits $GITHUB_REF_NAME" --generate-notes

@@ -1,0 +1,40 @@
+# The game's data is in PITS95 (freely distributable, see its readme)
+compiled-version/
+
+# Build artifacts
+*.o
+*.exe
+*.obj
+
+# Executables
+demo
+pits
+test
+test_sdl
+
+# Build directories
+build/
+.nix/
+.zig-cache/
+
+# Nix build results
+result
+result-*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+zig-out/
+/editor.html

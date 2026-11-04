@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>The Puzzle Pits</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #ccc; font: 14px sans-serif; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  #game { display: flex; align-items: center; justify-content: center; background: #000; }
+  #game:fullscreen { width: 100vw; height: 100vh; }
+  canvas { image-rendering: pixelated; outline: none; touch-action: none; }
+  /* a phone: no page panning, zooming or text selection under the fingers */
+  html, body { overscroll-behavior: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  #game { touch-action: none; }
+  #bar { margin: .6em 1em; text-align: center; }
+  #bar p { margin: .3em 0; }
+  button { font: inherit; margin: 0 .3em; padding: .3em .9em; background: #333; color: #eee; border: 1px solid #666; border-radius: 4px; cursor: pointer; }
+  button:hover { background: #444; }
+  a { color: #8cf; }
+  /* the phone keyboard's input: on the page (a hidden input gets no keyboard) but out of sight */
+  #typing { position: fixed; left: -100px; top: 0; width: 50px; font-size: 16px; opacity: 0; }
+  /* a phone on its side: the game takes the whole height; the buttons sit small in a corner, over the black
+     margin beside it, and the keyboard help (for keyboards) is left out */
+  body.phone-side #bar { position: fixed; top: env(safe-area-inset-top, 0px); right: env(safe-area-inset-right, 0px); margin: 6px; z-index: 5; }
+  body.phone-side #bar p:not(#buttons) { display: none; }
+  body.phone-side #bar button { display: block; margin: 0 0 6px; padding: .45em .8em; background: rgba(40,40,40,.85); width: 100%; }
+  body.phone-side #bar button[hidden] { display: none; }
+  #cancel { background: #533; border-color: #866; }
+  /* full screen with the d-pad (touch screens): the whole page goes full screen, so the d-pad and the buttons
+     stay; the keyboard help is left out */
+  body.page-full #bar p:not(#buttons) { display: none; }
+  /* the on-screen d-pad (touch screens): beside the game on a phone on its side, under it upright */
+  #pad { position: fixed; z-index: 4; display: grid; grid-template-columns: repeat(3, var(--cell)); grid-template-rows: repeat(3, var(--cell)) auto; gap: 4px; touch-action: none; --cell: 44px;
+         -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  #pad[hidden] { display: none; }
+  #pad button { margin: 0; padding: 0; width: var(--cell); height: var(--cell); font-size: calc(var(--cell) * .45); line-height: 1; background: rgba(60,60,60,.75); border-radius: 8px; color: #ddd; }
+  #pad button.on { background: rgba(120,120,160,.9); }
+  #pad .up { grid-area: 1 / 2; } #pad .left { grid-area: 2 / 1; } #pad .ok { grid-area: 2 / 2; font-size: calc(var(--cell) * .3); }
+  #pad .right { grid-area: 2 / 3; } #pad .down { grid-area: 3 / 2; }
+  #pad .mode { grid-area: 4 / 1 / 5 / 4; width: auto; height: auto; padding: .35em 0; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="game"><canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas></div>
+<div id="bar">
+  <p id="status">Loading The Puzzle Pits…</p>
+  <p id="buttons"><button id="full" title="Alt+Enter">Full screen</button><button id="again" hidden>Play again</button><button id="kbd" hidden>Keyboard</button><button id="cancel" hidden title="Esc">Cancel</button></p>
+  <div id="pad" hidden aria-label="Arrow keys">
+    <button class="up" data-key="0" aria-label="Up">▲</button><button class="left" data-key="2" aria-label="Left">◀</button>
+    <button class="ok" data-key="4" aria-label="Enter">OK</button><button class="right" data-key="3" aria-label="Right">▶</button>
+    <button class="down" data-key="1" aria-label="Down">▼</button>
+    <button class="mode" aria-label="Arrows: hold, toggle or push">Hold</button>
+  </div>
+  <input id="typing" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Type for the game">
+  <p>Arrow keys or the mouse to move, Enter to go on; the sound starts with your first key or click.
+    Abe Pralle's 1995 DOS game, <a href="https://github.com/LaPingvino/The-Puzzle-Pits">on GitHub</a>.
+    Make your own pits in the <a href="editor/">level editor</a>.</p>
+</div>
+<script>
+  var canvas = document.getElementById("canvas");
+  var game = document.getElementById("game");
+  var Module = {
+    canvas: canvas,
+    setStatus: function (s) { document.getElementById("status").textContent = s || ""; },
+    onRuntimeInitialized: function () { canvas.focus(); },
+    // Quit: out of full screen, and a way to play again (the game has
+    // ended; a fresh one is the page again)
+    onExit: function () {
+      if (document.fullscreenElement) document.exitFullscreen();
+      document.getElementById("status").textContent = "Thanks for playing The Puzzle Pits.";
+      document.getElementById("full").hidden = true;
+      document.getElementById("again").hidden = false;
+      document.getElementById("again").focus();
+    },
+  };
+  canvas.addEventListener("click", function () { canvas.focus(); });
+  // Sound from the first tap: browsers start audio only from a user's touch,
+  // click or key, and iOS Safari only when resume() runs inside that event.
+  // Emscripten's SDL2 resumes its AudioContext later, from its audio
+  // callback, which iOS refuses; so each touch, click or key resumes it here
+  // until it runs (the context only exists once the game opens its audio).
+  ["touchend", "pointerdown", "keydown"].forEach(function (t) {
+    document.addEventListener(t, function () {
+      var ctx = Module.SDL2 && Module.SDL2.audioContext;
+      if (ctx && ctx.state === "suspended") ctx.resume();
+    }, true);
+  });
+  // A touch screen: any pointer that is one (a Chromebook's touch screen next to its touchpad counts, though
+  // its main pointer is the touchpad), a touch that has happened, or ?pad / ?kbd in the address. The first
+  // touch reveals the touch controls if they weren't shown yet.
+  var touched = false;
+  function touchy() {
+    return touched || matchMedia("(any-pointer: coarse)").matches || /[?&](pad|kbd)/.test(location.search);
+  }
+  var onFirstTouch = [];
+  document.addEventListener("touchstart", function () {
+    if (touched) return;
+    touched = true;
+    onFirstTouch.forEach(function (f) { f(); });
+    if (typeof fit === "function") fit();
+  }, { capture: true, passive: true });
+  // Touch screens: a Keyboard button brings up the phone's keyboard for the
+  // riddles and the password. Each character goes to the game as a key
+  // (pits_type); "  " stays in the box so a Backspace still has something
+  // to delete.
+  (function () {
+    var kbd = document.getElementById("kbd"), typing = document.getElementById("typing");
+    var KEEP = "  ";
+    function send(c) { if (Module._pits_type) Module._pits_type(c); }
+    function reset() { typing.value = KEEP; typing.setSelectionRange(KEEP.length, KEEP.length); }
+    if (touchy()) kbd.hidden = false;
+    onFirstTouch.push(function () { kbd.hidden = false; });
+    kbd.addEventListener("click", function () { reset(); typing.focus(); });
+    typing.addEventListener("input", function () {
+      var v = typing.value;
+      if (v.length < KEEP.length) for (var i = v.length; i < KEEP.length; i++) send(8);
+      else for (var ch of v.slice(KEEP.length)) { var c = ch.codePointAt(0); if (c >= 32 && c <= 126) send(c); }
+      reset();
+    });
+    // Enter goes to the game; no key event from this box reaches the game twice
+    function own(e) {
+      e.stopPropagation();
+      if (e.type === "keydown" && e.key === "Enter") { e.preventDefault(); send(13); }
+    }
+    ["keydown", "keyup", "keypress"].forEach(function (t) { typing.addEventListener(t, own); });
+    // While the game reads typed text (pits_text_entry: 1 the level password, 2 a riddle's answer) a tap on
+    // the game brings up the phone keyboard (a page may only focus an input inside the tap itself), the
+    // Keyboard button shows, and for the password a Cancel button sends Esc (back to the menu). When the
+    // game stops reading, the keyboard goes away.
+    var cancel = document.getElementById("cancel"), mode = 0;
+    function textMode() { return Module._pits_text_entry ? Module._pits_text_entry() : 0; }
+    canvas.addEventListener("pointerup", function () {
+      if (textMode() && touchy()) { reset(); typing.focus(); }
+    });
+    cancel.addEventListener("click", function () { send(27); });
+    setInterval(function () {
+      var m = textMode();
+      if (m === mode) return;
+      mode = m;
+      cancel.hidden = m !== 1;
+      if (touchy()) kbd.hidden = false;
+      if (!m && document.activeElement === typing) { typing.blur(); canvas.focus(); }
+      fit();
+    }, 150);
+  })();
+  // The d-pad (touch screens): a finger on an arrow holds that arrow key down, as a keyboard does, so the
+  // player moves a square at a time instead of running after a tap; sliding to another arrow switches keys.
+  // A press is held at least 150 ms: the game looks at the keys every few frames and a quicker tap would
+  // be missed.
+  var pad = document.getElementById("pad");
+  (function () {
+    if (touchy()) pad.hidden = false;
+    onFirstTouch.push(function () { pad.hidden = false; });
+    var held = null, since = 0;
+    // The mode button cycles Hold → Toggle → Push (Joop):
+    //   Hold   an arrow is down while the finger is on it (a quick tap: one step);
+    //   Toggle a tap puts an arrow down until it (or another) is tapped — for touch screens where a long press
+    //          opens the right-click menu (Chromebooks);
+    //   Push   the next arrow tap holds it until the game counts a move (pits_moves: one step or one push —
+    //          a box goes once the guy has leant on it 0.42 s, and again every 0.42 s after, so the arrow is
+    //          let go the moment the first move is counted), at most PUSH_MAX_MS if nothing moves (a wall, a
+    //          stuck box); then the mode goes back to Hold.
+    var PUSH_MAX_MS = 1500, pushed = null; // pushed: the arrow a Push holds (lifting the finger doesn't let it go)
+    function moves() { return Module._pits_moves ? Module._pits_moves() : -1; }
+    var modeBtn = pad.querySelector(".mode"), modes = ["Hold", "Toggle", "Push"], mode = 0;
+    try { mode = localStorage.getItem("pits-pad-mode") === "Toggle" ? 1 : 0; } catch (e) {}
+    function showMode() { modeBtn.textContent = modes[mode]; modeBtn.classList.toggle("on", mode > 0); }
+    function setMode(m) {
+      mode = m;
+      if (m < 2) { try { localStorage.setItem("pits-pad-mode", modes[m]); } catch (e) {} }
+      showMode();
+    }
+    showMode();
+    pad.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    function key(k, down) { if (Module._pits_key) Module._pits_key(k, down ? 1 : 0); }
+    function press(b) {
+      if (b === held) return;
+      release();
+      if (!b) return;
+      held = b; since = performance.now();
+      b.classList.add("on"); key(+b.dataset.key, true);
+    }
+    function release() {
+      if (!held) return;
+      var b = held, wait = Math.max(0, 150 - (performance.now() - since));
+      held = null; b.classList.remove("on");
+      setTimeout(function () { key(+b.dataset.key, false); }, wait);
+    }
+    function under(e) { var el = document.elementFromPoint(e.clientX, e.clientY); return el && el.parentNode === pad ? el : null; }
+    pad.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      var b = under(e);
+      if (b === modeBtn) {
+        release();
+        pushed = null;
+        setMode((mode + 1) % modes.length);
+        return;
+      }
+      var arrow = b && b.dataset.key !== "4";
+      if (mode === 2 && arrow) { // Push: held for one push, then back to Hold
+        press(b);
+        pushed = b;
+        var start = moves(), since0 = performance.now();
+        (function watch() {
+          if (pushed !== b) return;
+          if (moves() !== start || performance.now() - since0 >= PUSH_MAX_MS) {
+            pushed = null;
+            if (held === b) release();
+            return;
+          }
+          requestAnimationFrame(watch);
+        })();
+        setMode(0);
+        return;
+      }
+      if (mode === 1 && arrow) { // Toggle: down until tapped again or another arrow is tapped
+        if (b === held) release(); else press(b);
+        return;
+      }
+      pad.setPointerCapture(e.pointerId);
+      press(b);
+    });
+    pad.addEventListener("pointermove", function (e) { if (held && mode === 0) press(under(e)); });
+    ["pointerup", "pointercancel"].forEach(function (t) {
+      pad.addEventListener(t, function () {
+        if (held && held !== pushed && (mode === 0 || held.dataset.key === "4")) release(); // Toggle / Push let go by themselves
+      });
+    });
+  })();
+  document.getElementById("again").addEventListener("click", function () { location.reload(); });
+  // Full screen: the game alone on a keyboard machine; with the d-pad showing (a touch screen) the whole page,
+  // since only what is inside the full-screen element is shown and the d-pad lives beside the game.
+  function toggleFull() {
+    if (document.fullscreenElement) { document.exitFullscreen(); return; }
+    var el = pad.hidden ? game : document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().then(function () { canvas.focus(); });
+  }
+  document.getElementById("full").addEventListener("click", toggleFull);
+  // Alt+Enter, as on the desktop (before the game takes it for Enter)
+  addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.altKey) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      toggleFull();
+    }
+  }, true);
+  // the 320x200 screen at the biggest whole multiple that fits, so every
+  // pixel is as wide as the next (a fraction made the letters uneven) — but
+  // when that would leave it under twice its size (a phone), as large as fits
+  // instead: a usable screen matters more there than even pixels
+  // the Full screen button only where the page can go full screen (not an iPhone's Safari)
+  if (!document.fullscreenEnabled) document.getElementById("full").hidden = true;
+  function fit() {
+    var full = document.fullscreenElement === game;
+    document.body.classList.toggle("page-full", document.fullscreenElement === document.documentElement);
+    document.getElementById("full").textContent = document.fullscreenElement ? "Exit full screen" : "Full screen";
+    var side = touchy() && innerWidth > innerHeight;
+    document.body.classList.toggle("phone-side", side);
+    var room = full || side ? innerHeight : innerHeight - document.getElementById("bar").offsetHeight - 16;
+    // on its side with the d-pad: the d-pad's column on the left and the buttons' on the right are kept free
+    var pad = document.getElementById("pad"), padW = side && pad && !pad.hidden ? PAD_SIDE * 3 + 8 + 16 : 0;
+    var barW = side ? document.getElementById("bar").offsetWidth + 12 : 0;
+    game.style.marginLeft = padW ? padW + "px" : ""; game.style.marginRight = padW ? barW + "px" : "";
+    var fitK = Math.min((innerWidth - (padW ? padW + barW : 0)) / 320, room / 200);
+    var k = Math.max(1, Math.floor(fitK));
+    if (k < 2) k = Math.max(fitK, 0.5);
+    canvas.style.width = Math.floor(320 * k) + "px";
+    canvas.style.height = Math.floor(200 * k) + "px";
+    placePad();
+  }
+  // the d-pad goes in the free space: on a phone on its side the black margin left of the game (the buttons
+  // have the right one), upright under the game, its cells as big as that space allows (36–64 px)
+  var PAD_SIDE = 40; // the d-pad's cell on a phone on its side (px)
+  function placePad() {
+    var pad = document.getElementById("pad");
+    if (!pad || pad.hidden) return;
+    var r = canvas.getBoundingClientRect(), side = document.body.classList.contains("phone-side"), cell;
+    if (side) {
+      cell = PAD_SIDE;
+      pad.style.left = "max(8px, env(safe-area-inset-left, 0px))"; pad.style.top = ""; pad.style.right = "";
+      pad.style.bottom = "calc(12px + env(safe-area-inset-bottom, 0px))";
+    } else {
+      cell = Math.max(36, Math.min(64, Math.floor((innerHeight - r.bottom - document.getElementById("bar").offsetHeight - 24) / 3) - 4));
+      pad.style.left = "50%"; pad.style.transform = "translateX(-50%)"; pad.style.bottom = "calc(8px + env(safe-area-inset-bottom, 0px))";
+    }
+    if (side) pad.style.transform = "";
+    pad.style.setProperty("--cell", cell + "px");
+  }
+  addEventListener("resize", fit);
+  document.addEventListener("fullscreenchange", fit);
+  fit();
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>

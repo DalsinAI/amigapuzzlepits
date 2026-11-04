@@ -1,0 +1,73 @@
+# The Puzzle Pits
+
+A puzzle game from 1995 by Abe Pralle (Plasma Works), first for DOS, now for Linux, Windows, macOS and the web. Push barrels, step on plates, mind the lava, and find the way out of forty pits.
+
+The source was released under the Apache 2.0 License with Abe's permission (see README), and the game's data may be freely distributed (see PITS95/readme.txt).
+
+## Play
+
+Play it online at **https://lapingvino.github.io/The-Puzzle-Pits/**, or download it:
+
+the [releases](https://github.com/LaPingvino/The-Puzzle-Pits/releases) have it for each system: unpack it and start `puzzle-pits`.
+
+- **Linux:** SDL2 needs to be installed. On most systems it is already; if not, install `sdl2` or `libsdl2-2.0-0`.
+- **Windows:** SDL2 comes with the game.
+- **macOS:** SDL2 comes with the game. The first time, open it with right-click > Open, because it isn't signed.
+
+The game remembers the furthest level you reached: **Resume** on the title screen starts there, and **Choose Level** (Left and Right) any level before it. The arrow keys or the mouse move you; Enter or a click goes on. The F keys use what you carry, as shown beside them. F11 or Alt+Enter switches to full screen. The game's own instructions are in PITS95/readme.txt.
+
+## Make your own levels
+
+The level editor is online at **https://lapingvino.github.io/The-Puzzle-Pits/editor/**, and each release has it as one HTML file to use offline (`puzzle-pits-editor.html`). It opens Abe's levels or any `.PIT` file, paints the ground and the objects, and edits the levels' scripts as text. It saves `.PIT` files that both this game and the original DOS `PITS.EXE` read: put one in the `LEVELS` folder as `LEVELnn.PIT`. **Play** tries the level in the web game, and on the desktop `puzzle-pits mylevel.pit` plays a level file straight away.
+
+### Level packs
+
+As in Rocks'n'Diamonds, levels come in packs. Abe's forty are the first; any other is a folder of `LEVEL01.PIT`, `LEVEL02.PIT` and so on, with an optional `pack.txt` holding `name=` and `author=` lines. The game looks for them in a `PACKS` folder beside its data, and in `packs` in its user data folder (`~/.local/share/PlasmaWorks/PuzzlePits/packs` on Linux). When there are more packs than Abe's, the title screen's first line picks one with Left and Right, and each pack remembers its own progress. The editor makes them: add levels to its pack, then **Download pack (.zip)**, and unpack the zip into `PACKS`; it opens packs again from their zip. Packs aren't in the web version of the game yet.
+
+The level format and the script language are described in [docs/PIT-FORMAT.md](docs/PIT-FORMAT.md); `node tools/pit_test.mjs` checks that every one of Abe's levels reads and writes back byte for byte. `node tools/build-editor.mjs editor.html` builds the editor.
+
+## Rocks'n'Diamonds
+
+[rocksndiamonds-pits](https://github.com/LaPingvino/rocksndiamonds-pits) adds an engine for Pits to Rocks'n'Diamonds, as it has for Supaplex and others: it plays the game's own level files (Abe's, and any made with the editor) by its own rules, scripts and all, with its own pictures and sounds. It is proposed to R'n'D as patches, and was written from [docs/PITS-RULES.md](docs/PITS-RULES.md) and [docs/PIT-FORMAT.md](docs/PIT-FORMAT.md) alone. R'n'D's level editor edits those levels' pits (with elements made by `tools/rndset.mjs`) and saves them as `.PIT` files, scripts untouched. Scripts can also be kept as text beside a level and put into it:
+
+```sh
+node tools/pitscripts.mjs LEVEL01.PIT > LEVEL01.pits      # a level's scripts as text
+node tools/pitscripts.mjs LEVEL01.PIT LEVEL01.pits        # and into the level
+```
+
+Without it, the levels also play in an unchanged R'n'D, made of its custom elements: `node tools/pit2rnd.mjs PITS95/LEVELS the_puzzle_pits`, then put the folder in `~/.rocksndiamonds/levels` (each release has it zipped). Most of Pits' rules work there (coloured targets, arrows, glass, water, lava, holes, the gems); what plates, switches and signs do in a level's scripts doesn't. The set's README.txt says what each level loses.
+
+## Build
+
+You need [Zig](https://ziglang.org) 0.17 and SDL2's development files:
+
+```sh
+zig build            # zig-out/bin/puzzle-pits, and the demo
+zig build run        # play
+```
+
+Cross-compiling for Windows uses SDL2's own Windows build: unpack `SDL2-devel-…-mingw.tar.gz` from [SDL's releases](https://github.com/libsdl-org/SDL/releases) and run:
+
+```sh
+zig build -Dtarget=x86_64-windows-gnu -Dsdl-prefix=SDL2-…/x86_64-w64-mingw32
+```
+
+`zig build web` builds it for a browser into zig-out/web, with [Emscripten](https://emscripten.org) (its `emcc` on the PATH).
+
+`zig build -Dsdl=false` builds without SDL2; it compiles, but shows and plays nothing.
+
+## How the port works
+
+The game's own code is kept as it was. The parts of DOS it relied on are replaced:
+
+- **Screen:** VGA mode 13h, 320×200 in 256 colours, is shown through SDL, which scales it to the window. Video memory is shown continuously, as the VGA card did, so palette fades work as they did.
+- **Sound:** DiamondWare's mixer for the Sound Blaster runs in an SDL audio callback (`sdl_compat.c`).
+- **Keyboard and mouse:** these come from SDL events.
+- **Compiler:** the game was written for a 16-bit DOS compiler. It's built with unsigned `char`, and `WORD`, `LONG` and `DWORD` have the sizes they had there (16, 32 and 32 bits).
+
+To test without a window, run the game with `SDL_VIDEODRIVER=offscreen` from PITS95, with these settings:
+
+- `PITS_KEYS="13000:Return,15000:Right,16000:@60;40,16500:Click"` presses keys at those times (milliseconds), moves the mouse and clicks.
+- `PITS_QUIT_AFTER=20000` makes the game quit by itself after that many milliseconds.
+- `PITS_SHOT=screen.ppm` writes what's on screen when the game ends.
+- In `PITS_KEYS`, `'text` types text as the web page's phone keyboard does (`\b` is Backspace), e.g. `PITS_KEYS="3000:Return,5000:Return,7500:'abc\bd"`. Without a display, `SDL_VIDEODRIVER=offscreen SDL_AUDIODRIVER=dummy` runs the game unseen.
