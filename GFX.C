@@ -689,12 +689,13 @@ void CheckKeyboard(void)
   // Always process SDL events for keyboard input
   readmbutton();
   
-  // Get next keypress from SDL queue if inkey is clear
-  if (inkey == 0xff) {
-    int key = get_next_keypress();
-    if (key > 0) {
-      inkey = key;
-    }
+  // A new keypress replaces inkey, read or not, as the DOS keyboard
+  // handler did: a key the game does not use where it is (Space in the
+  // pit) would otherwise stay in inkey, and every later key, F10 too,
+  // would be dropped
+  int key = get_next_keypress();
+  if (key > 0) {
+    inkey = key;
   }
 }
 

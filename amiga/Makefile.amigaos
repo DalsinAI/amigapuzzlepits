@@ -1,0 +1,79 @@
+# The Puzzle Pits for AmigaOS 3.x / AmiCradle, 68040 + FPU, on acsdl12.
+#
+#   make -f amiga/Makefile.amigaos STOVE=/path/to/openamigagcc \
+#        NDK=/path/to/gfopensdk/OpenNDK/Include_H \
+#        ACSDL=/path/to/amicradle-guest/gameports/acsdl12
+#
+# STOVE is GFOpenAmigaGCC 16.2.0-open4 or later. ACSDL is acsdl12, built with
+# its own Makefile.amigaos (its library holds zlib's inflate, so ZLIB is only
+# needed to build acsdl12). The game is upstream's C (ENV.C FILE.C GFX.C
+# LOAD.C PITS.C) built as build.zig builds it, with unsigned char;
+# sdl_compat.c is replaced by amiga/sdl_compat_amiga.c. The data is
+# upstream's PITS95 as it is: VGA pictures in 256 colours, 8-bit WAVs.
+# Output: build/amigaos/PuzzlePits/ with the program, its data and LEVELS
+# beside it, and the icons.
+
+STOVE   ?= $(HOME)/CradleLab/toolchain/openamigagcc-16.2.0-open4-x86_64-linux
+NDK     ?= $(HOME)/CradleLab/gfopensdk/OpenNDK/Include_H
+ACSDL   ?= $(HOME)/CradleLab/guest-sdl/gameports/acsdl12
+ACGAME  ?= $(ACSDL)/../acgame
+ZLIB    ?= $(HOME)/CradleLab/zlib-1.3.1
+CC      = $(STOVE)/bin/m68k-amigaos-gcc
+CPU     ?= -m68040 -m68881
+OPT     ?= -O2 -fomit-frame-pointer
+# As build.zig: the game was written for a 16-bit DOS compiler, with
+# unsigned char, and passes char * and unsigned char * for each other;
+# its unused locals are left as upstream has them.
+CFLAGS  = -noixemul -std=gnu11 $(OPT) $(CPU) -Wall \
+          -funsigned-char -fno-strict-aliasing -Wno-pointer-sign \
+          -Wno-unknown-pragmas -Wno-unused-variable -Wno-unused-but-set-variable \
+          -DUSE_SDL -I. \
+          -I$(ACSDL)/include/SDL -I$(ACSDL)/include -I$(ACGAME)/include -I$(NDK)
+LDFLAGS = -noixemul $(CPU)
+BUILD   = build/amigaos
+OUT     = $(BUILD)/PuzzlePits
+
+GAME    = ENV FILE GFX LOAD PITS
+OBJS    = $(GAME:%=$(BUILD)/%.o) $(BUILD)/sdl_compat_amiga.o $(BUILD)/progdir.o $(BUILD)/stack.o
+HEADERS = $(wildcard *.H) compat.h sdl_compat.h
+DATA    = $(filter-out PITS95/PITS.EXE PITS95/readme.txt,$(wildcard PITS95/*.*))
+LEVELS  = $(wildcard PITS95/LEVELS/*.PIT)
+ICONS   = amiga/icons/PuzzlePits-drawer.info amiga/icons/PuzzlePits.info \
+          amiga/icons/LEVELS.info amiga/icons/ReadMe.info \
+          amiga/icons/Instructions.info amiga/icons/LICENSE.info
+
+all: $(OUT)/PuzzlePits
+
+$(OUT)/PuzzlePits: $(OBJS) $(DATA) $(LEVELS) $(ICONS) AMIGA_PORT.md | $(OUT)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(ACSDL)/build/amigaos/libacsdl12.a -lm
+	rm -rf $(OUT)/LEVELS
+	mkdir -p $(OUT)/LEVELS
+	cp $(DATA) $(OUT)/
+	cp $(LEVELS) $(OUT)/LEVELS/
+	cp AMIGA_PORT.md $(OUT)/ReadMe
+	cp PITS95/readme.txt $(OUT)/Instructions
+	cp LICENSE $(OUT)/LICENSE
+	cp amiga/icons/PuzzlePits.info amiga/icons/LEVELS.info amiga/icons/ReadMe.info \
+	   amiga/icons/Instructions.info amiga/icons/LICENSE.info $(OUT)/
+	cp amiga/icons/PuzzlePits-drawer.info $(BUILD)/PuzzlePits.info
+
+# upstream's sources are named in capitals (.C), which is C here.
+# Their 1995 code warns of a file pointer left unset for a screen number
+# the game never asks for (LoadScreen), two "break"s indented as if inside
+# an "if" (Gdrall: they are meant to end the case), and sprintf into
+# buffers too small only for numbers the game never reaches (items over
+# 99999, levels over 999); left as they are upstream.
+UPSTREAM_W = -Wno-maybe-uninitialized -Wno-misleading-indentation -Wno-format-overflow
+$(BUILD)/%.o: %.C $(HEADERS) | $(BUILD)
+	$(CC) $(CFLAGS) $(UPSTREAM_W) -x c -c -o $@ $<
+
+$(BUILD)/%.o: amiga/%.c $(HEADERS) | $(BUILD)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILD) $(OUT):
+	mkdir -p $@
+
+clean:
+	rm -rf $(BUILD)
+
+.PHONY: all clean

@@ -35,6 +35,9 @@ void ReadMem(FILE *fp, char *addr, ULONG size);
 WORD ReadWord(FILE *fp);
 UBYTE ReadUByte(FILE *fp);
 void ReadString(FILE *fp,char *str);
+#ifdef __amigaos__
+void ReadStringMax(FILE *fp,char *str,ULONG max);
+#endif
 
 #endif
 

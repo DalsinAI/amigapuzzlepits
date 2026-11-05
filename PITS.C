@@ -4,6 +4,10 @@
 #include "TILEDEFS.H"
 #include "GFX.H"
 #include "compat.h"
+#ifdef __amigaos__
+/* the level's strings into their own buffers, no further (FILE.C) */
+#define ReadString(fp,str) ReadStringMax(fp,str,sizeof(str))
+#endif
 
 typedef struct {
   WORD crack,groan,magic,plateoff,plateon,scrape,water,lava,splinter,glass;
@@ -1118,6 +1122,9 @@ WORD GameLoadLevel(void)
     ReadRun(fp,(WORD *) pitcode);
     while(numpitcode){
       i=ReadWord(fp);
+#ifdef __amigaos__
+      if(i<0 || i>=MAXPITCODE){ CloseFile(fp); return 0; }  /* a damaged level */
+#endif
       ReadString(fp,pitcodedef[i].name);
       if(strcasecmp(pitcodedef[i].name,"Intro")==0) pcintro=i;
       else if(strcasecmp(pitcodedef[i].name,"Master")==0) pcmaster=i;
@@ -1125,13 +1132,24 @@ WORD GameLoadLevel(void)
       else if(strcasecmp(pitcodedef[i].name,"GreenGem")==0) pcgreeng=i;
       else if(strcasecmp(pitcodedef[i].name,"BlueGem")==0) pcblueg=i;
       pitcodedef[i].codesize=ReadWord(fp);
+#ifdef __amigaos__
+      {
+        WORD off=ReadWord(fp);
+        if(off<0 || (ULONG)off+(UWORD)pitcodedef[i].codesize>sizeof(code)){ CloseFile(fp); return 0; }
+        pitcodedef[i].codeptr=off+code;
+      }
+#else
       pitcodedef[i].codeptr=ReadWord(fp)+code;
+#endif
       if(pitcodedef[i].codesize==0){
         pitcodedef[i].codeptr=NULLADDR;
       }
       numpitcode--;
     }
     totalcode=ReadWord(fp);
+#ifdef __amigaos__
+    if(totalcode>sizeof(code)){ CloseFile(fp); return 0; }  /* more than code[] holds */
+#endif
     ReadMem(fp,(char*)code,totalcode);
     for(i=0,keypos=0;i<totalcode;i++){
       code[i]^=key[keypos++];

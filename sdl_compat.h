@@ -1,7 +1,11 @@
 #ifndef SDL_COMPAT_H
 #define SDL_COMPAT_H
 
+#ifdef __amigaos__
+#include <SDL.h> /* acsdl12, SDL 1.2: the backend is amiga/sdl_compat_amiga.c */
+#else
 #include <SDL2/SDL.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -27,11 +31,13 @@ extern "C" {
 // Video memory emulation
 extern uint8_t *vga_memory_buffer;  // 320x200 VGA buffer
 
+#ifndef __amigaos__
 // SDL globals
 extern SDL_Window *sdl_window;
 extern SDL_Renderer *sdl_renderer;
 extern SDL_Texture *sdl_texture;
 extern SDL_Event sdl_event;
+#endif
 
 // Video mode functions; setmode named apart from mingw's (io.h) and the
 // BSDs' and macOS's (unistd.h), there first so they are not declared again
@@ -92,10 +98,17 @@ typedef struct {
 #endif
 
 // DOS interrupt stubs
+#ifdef __amigaos__
+#define disable()
+#define enable()
+#define _disable()
+#define _enable()
+#else
 #define disable() SDL_DisableScreenSaver()
 #define enable() SDL_EnableScreenSaver()
 #define _disable() SDL_DisableScreenSaver()
 #define _enable() SDL_EnableScreenSaver()
+#endif
 
 // Port I/O stubs, named apart from those some C libraries declare
 // (mingw's), which they would clash with
