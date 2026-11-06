@@ -1,0 +1,62 @@
+{
+  "drawer": "PuzzlePits",
+  "drawer_icon": "amiga/icons/PuzzlePits-drawer.info",
+  "archive": "puzzlepits-{version}-68040",
+  "members": [
+    {
+      "name": "PuzzlePits",
+      "build": "PuzzlePits",
+      "check": "executable_sha256"
+    },
+    {
+      "name": "Libs/acgame.library",
+      "build": "acgame.library",
+      "check": "acgame_library_sha256"
+    },
+    {
+      "name": "",
+      "tar": "drawer.tar"
+    }
+  ],
+  "aminet": [
+    [
+      "Short",
+      "The Puzzle Pits, puzzle game, 68040+FPU"
+    ],
+    [
+      "Author",
+      "Abe Pralle, Plasma Works; LaPingvino (port); Amiga port: AmiCradle Team"
+    ],
+    [
+      "Uploader",
+      "AmiCradle Team"
+    ],
+    [
+      "Type",
+      "game/think"
+    ],
+    [
+      "Version",
+      "{version}"
+    ],
+    [
+      "Requires",
+      "AmigaOS 3.x, 68040/68060 with FPU, AGA or RTG, AHI"
+    ],
+    [
+      "Architecture",
+      "m68k-amigaos >= 3.0"
+    ]
+  ],
+  "root": [
+    {
+      "name": "Install-PuzzlePits",
+      "repo": "package/installer/Install-PuzzlePits",
+      "installer": true
+    },
+    {
+      "name": "Install-PuzzlePits.info",
+      "repo": "package/installer/Install-PuzzlePits.info"
+    }
+  ]
+}

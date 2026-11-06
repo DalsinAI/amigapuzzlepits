@@ -1,0 +1,87 @@
+; $VER: Install-PuzzlePits 0.0-amiga2 (6.11.2026)
+; The Amiga Installer script for Puzzle Pits, an AmiCradle game port.
+; Made by amicradle scripts/port_installer.py: change the spec, not this file.
+; Run it from its icon, beside the PuzzlePits drawer where the archive was unpacked.
+
+(set @app-name "Puzzle Pits")
+(set #version "0.0-amiga2")
+(set #drawer "PuzzlePits")
+(set #program "PuzzlePits")
+(set #space 3907)  ; KB
+
+(onerror
+    (message (cat "Puzzle Pits was not installed completely." "\n\n" @error-msg
+                  "\n\nFiles already copied stay where they are. Run Install-PuzzlePits again to finish.")))
+
+; the Installer, the CPU and the FPU
+(if (< @installer-version 2818051)
+    (abort "Puzzle Pits needs Installer 43.3 or newer. This one is older: install AmigaOS 3.2 or a newer Installer."))
+(set #cpu (database "cpu"))
+(if (not (or (= #cpu "68040") (= #cpu "68060") (= #cpu "68080")))
+    (abort (cat "Puzzle Pits needs a 68040, 68060 or 68080 with an FPU. This Amiga has a " #cpu ".")))
+(if (= (database "fpu") "NOFPU")
+    (abort "Puzzle Pits needs a 68040, 68060 or 68080 with an FPU. This Amiga has no FPU."))
+
+; the package: the drawer beside this script
+(set #source (pathonly (expandpath @icon)))
+(set #from (tackon #source #drawer))
+(if (<> (exists #from (noreq)) 2)
+    (abort "The PuzzlePits drawer is not beside Install-PuzzlePits. Unpack the whole archive, then run Install-PuzzlePits from there."))
+(if (<> (exists (tackon #from #program) (noreq)) 1)
+    (abort "The PuzzlePits drawer has no PuzzlePits in it. Unpack the whole archive again."))
+
+(welcome "This installs Puzzle Pits 0.0-amiga2 for AmigaOS 3.2 on a 68040, 68060 or 68080 with an FPU.")
+
+; where: the parent drawer
+(set #default
+    (if (= (exists "Work:Games" (noreq)) 2) "Work:Games"
+        (if (= (exists "Work:" (noreq)) 2) "Work:" "SYS:")))
+(set #parent
+    (askdir
+        (prompt "Where should the PuzzlePits drawer go? Choose the drawer to put it in.")
+        (help "The Installer makes or updates a drawer called PuzzlePits in the drawer you choose. An update keeps your saves and settings.")
+        (default #default)))
+(set #dest (tackon #parent #drawer))
+(set #update (= (exists #dest (noreq)) 2))
+; in KB where the Installer can say so: in bytes, 2 GB free and more does not fit
+(set #free (if (>= @installer-version 2883584) (getdiskspace #parent "K")
+    (/ (getdiskspace #parent) 1024)))
+(if (and (>= #free 0) (< #free #space))
+    (abort (cat "There is not enough room in " #parent ": Puzzle Pits needs 4 MB free.")))
+
+; the drawer: everything in it, but what the player has made
+(set #kept "")
+(if (exists (tackon #dest "progress.txt") (noreq))
+    (set #kept (if (= #kept "") "progress.txt" (cat #kept "|" "progress.txt"))))
+(if (not #update)
+    (makedir #dest))
+(if (= #kept "")
+    (copyfiles
+        (prompt "Copying Puzzle Pits")
+        (help @copyfiles-help)
+        (source #from)
+        (dest #dest)
+        (all)
+        (optional "force" "askuser"))
+    (copyfiles
+        (prompt (cat "Updating Puzzle Pits. Kept as they are: " #kept))
+        (help @copyfiles-help)
+        (source #from)
+        (dest #dest)
+        (pattern (cat "~(" #kept ")"))
+        (optional "force" "askuser")))
+(if (<> (exists (tackon #parent "PuzzlePits.info") (noreq)) 1)
+    (copyfiles
+        (help @copyfiles-help)
+        (source #source)
+        (dest #parent)
+        (choices "PuzzlePits.info")))
+
+(set @default-dest #dest)
+(complete 100)
+(if @pretend
+    (message (cat "Pretend: nothing was copied or changed. Puzzle Pits would have gone in " #dest "."))
+    (message (cat "Puzzle Pits 0.0-amiga2 is installed in " #dest "."
+                  "\n\nTo start it, open the PuzzlePits drawer and double-click the PuzzlePits icon."
+                  (if (= #kept "") "" (cat "\n\nLeft as they were: " #kept ".")))))
+(exit (quiet))
