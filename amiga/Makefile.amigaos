@@ -2,7 +2,9 @@
 #
 #   make -f amiga/Makefile.amigaos STOVE=/path/to/openamigagcc \
 #        NDK=/path/to/gfopensdk/OpenNDK/Include_H \
-#        ACSDL=/path/to/amicradle-guest/gameports/acsdl12
+#        ACSDL=/path/to/amicradle-guest/gameports/acsdl12 \
+#        ACSDLLIB=/path/to/acsdl12/build ACGAME=/path/to/acgame \
+#        ACGAMELIB=/path/to/acgame/build-amiga
 #
 # STOVE is GFOpenAmigaGCC 16.2.0-open4 or later. ACSDL is acsdl12, built with
 # its own Makefile.amigaos (its library holds zlib's inflate, so ZLIB is only
@@ -10,13 +12,18 @@
 # LOAD.C PITS.C) built as build.zig builds it, with unsigned char;
 # sdl_compat.c is replaced by amiga/sdl_compat_amiga.c. The data is
 # upstream's PITS95 as it is: VGA pictures in 256 colours, 8-bit WAVs.
+# acsdl12 is built with ACG= into ACSDLLIB, without its own copy of ACGame:
+# the game gets ACGame from acgame.library, through ACGAMELIB's libacgame.a
+# (DalsinAI/acgame's stubs). package/acgame-deps.sh builds both.
 # Output: build/amigaos/PuzzlePits/ with the program, its data and LEVELS
 # beside it, and the icons.
 
 STOVE   ?= $(HOME)/CradleLab/toolchain/openamigagcc-16.2.0-open4-x86_64-linux
 NDK     ?= $(HOME)/CradleLab/gfopensdk/OpenNDK/Include_H
 ACSDL   ?= $(HOME)/CradleLab/guest-sdl/gameports/acsdl12
+ACSDLLIB ?= $(ACSDL)/build/amigaos
 ACGAME  ?= $(ACSDL)/../acgame
+ACGAMELIB ?= $(ACGAME)/build-amiga
 ZLIB    ?= $(HOME)/CradleLab/zlib-1.3.1
 CC      = $(STOVE)/bin/m68k-amigaos-gcc
 CPU     ?= -m68040 -m68881
@@ -45,7 +52,7 @@ ICONS   = amiga/icons/PuzzlePits-drawer.info amiga/icons/PuzzlePits.info \
 all: $(OUT)/PuzzlePits
 
 $(OUT)/PuzzlePits: $(OBJS) $(DATA) $(LEVELS) $(ICONS) AMIGA_PORT.md | $(OUT)
-	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(ACSDL)/build/amigaos/libacsdl12.a -lm
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(ACSDLLIB)/libacsdl12.a $(ACGAMELIB)/libacgame.a -lm
 	rm -rf $(OUT)/LEVELS
 	mkdir -p $(OUT)/LEVELS
 	cp $(DATA) $(OUT)/
