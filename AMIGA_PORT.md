@@ -6,6 +6,16 @@ LaPingvino) for AmigaOS 3.x on a 68040 with FPU, on acsdl12, our SDL 1.2 for
 game ports (ACGame's screen, AHI sound). Upstream:
 https://github.com/LaPingvino/The-Puzzle-Pits at 645288e.
 
+Installing
+----------
+
+Unpack the archive anywhere (on AmiCradle: SYS:Utilities/OpenCompress x
+puzzlepits-...lha RAM:), then double-click Install-PuzzlePits beside the
+PuzzlePits drawer: it asks where to put the game (Work:Games by default)
+and keeps progress.txt (the furthest level reached) of an earlier install.
+The drawer's Libs holds the acgame.library the game was built against, and
+the game opens that copy first.
+
 Running
 -------
 
@@ -54,7 +64,12 @@ What is different on the Amiga
 Building
 --------
 
-    make -f amiga/Makefile.amigaos STOVE=... NDK=... ACSDL=...
+    make -f amiga/Makefile.amigaos STOVE=... NDK=... ACSDL=... ACSDLLIB=... \
+         ACGAME=... ACGAMELIB=...
+
+or, for the release archive with its installer, package/build-amiga.sh
+(STOVE and OUT set; it fetches and builds acgame, acsdl12 and zlib at
+pinned commits).
 
 Output: build/amigaos/PuzzlePits/ (and its PuzzlePits.info beside it).
 Upstream's game code (ENV.C FILE.C GFX.C LOAD.C PITS.C) is built as

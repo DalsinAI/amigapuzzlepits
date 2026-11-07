@@ -1,0 +1,15 @@
+{
+  "name": "Puzzle Pits",
+  "version": "0.0-amiga2",
+  "drawer": "PuzzlePits",
+  "program": "PuzzlePits",
+  "cpu": "68040",
+  "fpu": true,
+  "space": 4000000,
+  "modules": [],
+  "keep": [
+    "progress.txt"
+  ],
+  "parent": "Work:Games",
+  "badge": "../amiga/icons/art/puzzlepits.png"
+}
