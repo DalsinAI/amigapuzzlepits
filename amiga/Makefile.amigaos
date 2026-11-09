@@ -46,7 +46,7 @@ HEADERS = $(wildcard *.H) compat.h sdl_compat.h
 DATA    = $(filter-out PITS95/PITS.EXE PITS95/readme.txt,$(wildcard PITS95/*.*))
 LEVELS  = $(wildcard PITS95/LEVELS/*.PIT)
 ICONS   = amiga/icons/PuzzlePits-drawer.info amiga/icons/PuzzlePits.info \
-          amiga/icons/LEVELS.info amiga/icons/ReadMe.info \
+          amiga/icons/ReadMe.info \
           amiga/icons/Instructions.info amiga/icons/LICENSE.info
 
 all: $(OUT)/PuzzlePits
@@ -60,7 +60,7 @@ $(OUT)/PuzzlePits: $(OBJS) $(DATA) $(LEVELS) $(ICONS) AMIGA_PORT.md | $(OUT)
 	cp AMIGA_PORT.md $(OUT)/ReadMe
 	cp PITS95/readme.txt $(OUT)/Instructions
 	cp LICENSE $(OUT)/LICENSE
-	cp amiga/icons/PuzzlePits.info amiga/icons/LEVELS.info amiga/icons/ReadMe.info \
+	cp amiga/icons/PuzzlePits.info amiga/icons/ReadMe.info \
 	   amiga/icons/Instructions.info amiga/icons/LICENSE.info $(OUT)/
 	cp amiga/icons/PuzzlePits-drawer.info $(BUILD)/PuzzlePits.info
 
